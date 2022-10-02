@@ -26,9 +26,10 @@ namespace UI
 		public float hideDuration = 1f;
 		public float showDuration = 1f;
 		public bool shouldTakeFocus = true;
+		public bool allowMultiple = false;
 
 		private static readonly HashSet<Window> _openWindows = new();
-		private static readonly Dictionary<string, Window> s_instances = new();
+		private static readonly Dictionary<Type, Window> s_instances = new();
 		private static bool _hadFocus;
 		
 		[SerializeField] protected StartMode _startMode;
@@ -37,7 +38,6 @@ namespace UI
 		private bool _isOpen;
 		private CanvasGroup _canvasGroup;
 		private Coroutine _fadeCoroutine;
-		private string _name;
 
 		public static event Action<Window, bool> OnWindowFocus;
 		public event Action<bool> OnFocus;
@@ -63,26 +63,26 @@ namespace UI
 			}
 		}
 
-		public string Name
-		{
-			get => _name;
-			set
-			{
-				if (_name.Equals(value))
-					return;
-
-				s_instances.Remove(_name);
-				s_instances.TryAdd(value, this);
-				
-				_name = value;
-			}
-		}
-
-		public static Window GetWindow(string name) =>
-			s_instances.TryGetValue(name, out Window window) ? window : null;
+		public static T GetWindow<T>() where T : Window =>
+			s_instances.TryGetValue(typeof(T), out Window window) ? (T)window : null;
 		
-		public static bool TryGetWindow(string name, out Window window) =>
-			s_instances.TryGetValue(name, out window);
+		public static Window GetWindow(Type type) =>
+			s_instances.TryGetValue(type, out Window window) ? window : null;
+		
+		public static bool TryGetWindow(Type type, out Window window) =>
+			s_instances.TryGetValue(type, out window);
+
+		public static bool TryGetWindow<T>(out T window) where T : Window
+		{
+			if (TryGetWindow(typeof(T), out Window _window))
+			{
+				window = _window as T;
+				return true;
+			}
+
+			window = null;
+			return false;
+		}
 
 		public void Toggle(bool instant = false) => SetOpen(!IsOpen, instant);
 		
@@ -96,7 +96,7 @@ namespace UI
 
 		public void Isolate(bool instant = false)
 		{
-			foreach ((string _, Window window) in s_instances)
+			foreach ((Type _, Window window) in s_instances)
 			{
 				if (window.Equals(this))
 					continue;
@@ -148,10 +148,7 @@ namespace UI
 				UpdateCursor(false);
 			
 			// Add to instances.
-			if (string.IsNullOrEmpty(_name))
-				_name = gameObject.name;
-			
-			s_instances.Add(_name, this);
+			s_instances.TryAdd(GetType(), this);
 			
 			// Reopen.
 			SetOpen(_wasOpen, true);
@@ -173,7 +170,7 @@ namespace UI
 			
 			SetOpen(false, true);
 
-			s_instances.Remove(_name);
+			s_instances.Remove(GetType());
 		}
 
 		protected virtual void Focus(bool value)
@@ -212,7 +209,7 @@ namespace UI
 			float start = _canvasGroup.alpha;
 			float normalizedTime;
 			
-			while ((normalizedTime = (Time.time - start) / duration) < 1f)
+			while ((normalizedTime = (Time.unscaledTime - start) / duration) < 1f)
 			{
 				_canvasGroup.alpha = Mathf.Lerp(start, target, normalizedTime);
 				yield return null;

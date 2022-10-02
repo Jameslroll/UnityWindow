@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
@@ -8,16 +9,10 @@ namespace UI
 	[CanEditMultipleObjects]
 	public class WindowEditor : Editor
 	{
-		private string _name;
-
-		private void OnEnable()
-		{
-			_name = target.name;
-		}
-
 		public override void OnInspectorGUI()
 		{
 			Window window = (Window)target;
+			Type windowType = target.GetType();
 			
 			// Draw toggle.
 			EditorGUILayout.BeginHorizontal();
@@ -30,26 +25,17 @@ namespace UI
 			
 			EditorGUILayout.EndHorizontal();
 			
-			// Draw name.
-			_name = Regex.Replace(EditorGUILayout.TextField("Name", _name), @"\s+", "");
-			
-			if (!_name.Equals(window.Name) && !string.IsNullOrEmpty(_name))
+			// Draw matches.
+			if (!window.allowMultiple && Window.TryGetWindow(windowType, out Window _window) && _window != window)
 			{
-				if (Window.TryGetWindow(_name, out Window namedWindow) && namedWindow != window)
-				{
-					EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+				EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
-					EditorGUILayout.LabelField($"Name '{_name}' is used by another window!", EditorStyles.boldLabel);
-					EditorGUI.BeginDisabledGroup(true);
-					EditorGUILayout.ObjectField(namedWindow, typeof(Window), true);
-					EditorGUI.EndDisabledGroup();
-					
-					EditorGUILayout.EndVertical();
-				}
-				else
-				{
-					window.name = _name;
-				}
+				EditorGUILayout.LabelField($"Multiple instances of type '{windowType.FullName}'!", EditorStyles.boldLabel);
+				EditorGUI.BeginDisabledGroup(true);
+				EditorGUILayout.ObjectField(_window, typeof(Window), true);
+				EditorGUI.EndDisabledGroup();
+				
+				EditorGUILayout.EndVertical();
 			}
 			
 			// Base inspector.
